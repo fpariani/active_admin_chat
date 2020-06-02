@@ -2,6 +2,7 @@ $(function() {
   _reframeTime($('.active-admin-chat__message-container'));
   _scrollConversationToBottom();
   _subscribeChannel();
+  _subscribeGlobalChannel();
   var gettingNewMessages = false;
 
   $('#send-message').on('keypress', function(event) {
@@ -60,6 +61,17 @@ $(function() {
     $('.active-admin-chat__conversation-history').append(_messageToHtml(message));
   };
 
+  function _markAsRead(message) {
+    var urlParam = `/messages/${message.id}/mark_as_read`;
+    $.ajax({
+      type: 'POST',
+      url: window.location.origin + urlParam,
+      dataType: 'json',
+      contentType: 'application/json; charset=utf-8',
+      context: this
+    });
+  };
+
   function _messageToHtml(message) {
     var adminClass = message.is_admin ? 'admin' : '';
     var messageHTML = "<div id='message-" + message.id + "' data-time='" + message.date +"' class='active-admin-chat__message-container " + adminClass + "'>" +
@@ -86,6 +98,15 @@ $(function() {
     return conversation.split('-')[1];
   }
 
+  function _updateUnreadNumber(chat) {
+    var conversation_unread_number_element = $(`#conversation-${chat.id}-unread-number`);
+    var conversation_unread_element = $(`#conversation-${chat.id}-unread`);
+    var unread_number = conversation_unread_number_element ? parseInt(conversation_unread_number_element.text()) : 0;
+    conversation_unread_element.text(
+      `(${unread_number === 0 ? 1 : unread_number + 1})` 
+    )
+  }
+
   function _subscribeChannel() {
     ActiveAdminChat.conversation = ActiveAdminChat.cable.subscriptions.create({
       channel: 'ChatChannel',
@@ -93,9 +114,20 @@ $(function() {
     }, {
       received: function(data) {
         _insertMessage(data);
+        _markAsRead(data);
       },
       sendMessage: function(data) {
         this.perform('speak', { message: data });
+      },
+    });
+  };
+
+  function _subscribeGlobalChannel() {
+    ActiveAdminChat.global_chats = ActiveAdminChat.cable.subscriptions.create({
+      channel: 'GlobalChatsChannel'
+    }, {
+      received: function(data) {
+        _updateUnreadNumber(data);
       },
     });
   };
